@@ -2,10 +2,10 @@
   "id": "io.github.shenglin1001.timesync",
   "name": { "zh-CN": "校时", "en": "Time sync" },
   "description": {
-    "zh-CN": "防止电脑时间和时区跑偏：每 5 分钟、开机、唤醒和解锁时向 Windows 的时间服务器（默认 time.windows.com）问一次时间，差 2 秒以上就立即校时，差 1 分钟以上会在岛上提示。校时靠一个开机和每次联网时也会自己运行的计划任务，安装时要管理员确认一次。还可以固定时区，被别的程序改掉时自动改回。主板电池没电、冷启动后时间慢几个小时的电脑尤其需要。",
-    "en": "Keeps the clock and the time zone right: every 5 minutes, at startup, on wake and on unlock it asks the time server Windows uses (time.windows.com by default) for the time, resyncs at once when the clock is off by more than 2 seconds and tells you when it was off by a minute or more. The resync runs through a scheduled task that also runs by itself at startup and on every network connection; installing it asks for administrator rights once. It can also fix the time zone and put it back when something changes it. Most useful on computers whose motherboard battery is flat and that start hours behind."
+    "zh-CN": "防止电脑时间和时区跑偏：每 5 分钟、开机、唤醒和解锁时向 Windows 的时间服务器（默认 time.windows.com）问一次时间，差 2 秒以上就立即校时，差 1 分钟以上会在岛上提示。校时靠一个开机和每次联网时也会自己运行的计划任务，安装时要管理员确认一次；卸载插件前请先在插件页面上卸载这个任务。还可以固定时区，被别的程序改掉时自动改回。主板电池没电、冷启动后时间慢几个小时的电脑尤其需要。",
+    "en": "Keeps the clock and the time zone right: every 5 minutes, at startup, on wake and on unlock it asks the time server Windows uses (time.windows.com by default) for the time, resyncs at once when the clock is off by more than 2 seconds and tells you when it was off by a minute or more. The resync runs through a scheduled task that also runs by itself at startup and on every network connection; installing it asks for administrator rights once; remove it on the plugin page before uninstalling the plugin. It can also fix the time zone and put it back when something changes it. Most useful on computers whose motherboard battery is flat and that start hours behind."
   },
-  "version": "0.1.0",
+  "version": "0.1.1",
   "apiVersion": 2,
   "author": "ShengLin1001",
   "homepage": "https://github.com/ShengLin1001/fuyu-plugin/tree/main/timesync",
