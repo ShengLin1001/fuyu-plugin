@@ -14,7 +14,10 @@ param(
 )
 . "$PSScriptRoot\lib\fuyu.ps1"
 
+$PluginId = 'io.github.shenglin1001.timesync'
+# In a folder of its own, so it never replaces a task of the same name someone made themselves.
 $TaskName = 'ResyncTimeOnNetwork'
+$TaskPath = '\Fuyu\'
 $View = 'main'
 # Off by more than this: resync. A clock Windows keeps in sync is well within a second.
 $MaxOffsetSeconds = 2
@@ -105,6 +108,8 @@ function Measure-Offset($TimeServer) {
 function Update-Check {
     $timeServer = Get-TimeServer
     $script:Check = @{ at = [DateTime]::Now; server = $timeServer.host; offset = (Measure-Offset $timeServer) }
+    # The server answered: a later failure gets its own retries.
+    if ($null -ne $script:Check.offset) { $script:Retries = 0 }
 }
 
 function Test-ClockOff {
@@ -112,14 +117,25 @@ function Test-ClockOff {
 }
 
 function Get-Task {
-    return Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction SilentlyContinue
+    $task = Get-ScheduledTask -TaskName $TaskName -TaskPath $TaskPath -ErrorAction SilentlyContinue
+    if ($null -ne $task) { return $task }
+    # 0.1.0 installed it at the root; that one keeps working until the next install moves it.
+    # A root task of the same name that this plugin did not install is left alone.
+    $legacy = Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction SilentlyContinue
+    if ($null -ne $legacy -and [string]$legacy.Description -like "*$PluginId*") { return $legacy }
+    return $null
 }
 
 # Starts the task and measures again once w32tm had time to set the clock. $false when the
 # task could not be started.
 function Invoke-Resync {
+    $task = Get-Task
+    if ($null -eq $task) {
+        $script:Denied = $false
+        return $false
+    }
     try {
-        Start-ScheduledTask -TaskName $TaskName -TaskPath '\'
+        Start-ScheduledTask -TaskName $task.TaskName -TaskPath $task.TaskPath
     } catch {
         Write-FuyuLog "cannot start the task: $($_.Exception.Message)"
         $script:Denied = $null -ne (Get-Task)
@@ -132,24 +148,32 @@ function Invoke-Resync {
 }
 
 # Runs a PowerShell script as administrator after Windows asked the user; returns when it
-# ended, or at once when the user said no.
+# ended, or at once when the user said no. $true when it ran and succeeded.
 function Invoke-Elevated([string]$Script) {
     $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes("`$ErrorActionPreference = 'Stop'; $Script"))
     try {
-        Start-Process powershell.exe -Verb RunAs -Wait -WindowStyle Hidden -ArgumentList "-NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand $encoded"
+        $process = Start-Process powershell.exe -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ArgumentList "-NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand $encoded"
+        if ($process.ExitCode -eq 0) { return $true }
+        Write-FuyuLog "the administrator script failed with exit code $($process.ExitCode)"
     } catch {
         Write-FuyuLog "not run as administrator: $($_.Exception.Message)"
     }
+    return $false
 }
+
+# The plugin's own tasks: the one in its folder, and the one 0.1.0 put at the root.
+$OwnTasks = "Get-ScheduledTask -TaskName '$TaskName' -ErrorAction SilentlyContinue | Where-Object { `$_.TaskPath -eq '$TaskPath' -or (`$_.TaskPath -eq '\' -and [string]`$_.Description -like '*$PluginId*') }"
 
 function Install-Task {
     $path_xml = (Join-Path $PSScriptRoot 'resync-task.xml') -replace "'", "''"
-    Invoke-Elevated "Register-ScheduledTask -TaskName '$TaskName' -TaskPath '\' -Xml (Get-Content -Raw -Encoding UTF8 '$path_xml') -Force | Out-Null"
-    $script:Denied = $false
+    $legacy = "$OwnTasks | Where-Object { `$_.TaskPath -eq '\' } | Unregister-ScheduledTask -Confirm:`$false"
+    if (Invoke-Elevated "Register-ScheduledTask -TaskName '$TaskName' -TaskPath '$TaskPath' -Xml (Get-Content -Raw -Encoding UTF8 '$path_xml') -Force | Out-Null; $legacy") {
+        $script:Denied = $false
+    }
 }
 
 function Remove-Task {
-    Invoke-Elevated "Unregister-ScheduledTask -TaskName '$TaskName' -TaskPath '\' -Confirm:`$false"
+    [void](Invoke-Elevated "$OwnTasks | Unregister-ScheduledTask -Confirm:`$false")
 }
 
 # Whether the plugin said this within the last $Hours; if not, remembers that it says it now.
@@ -168,12 +192,19 @@ function Send-Notice($Title, $Body, [object[]]$Actions = $null) {
     [void](Show-FuyuNotification $Title[$language] $Body[$language] $lactionText)
 }
 
+# Whether Windows sets the time zone itself ("Set time zone automatically"). The plugin then
+# leaves the zone alone: putting it back would fight Windows every few minutes while travelling.
+function Test-AutoTimeZone {
+    $service = Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\tzautoupdate' -Name Start -ErrorAction SilentlyContinue
+    return $null -ne $service -and $service.Start -eq 3
+}
+
 # Puts the time zone back when something changed it, if the user fixed one in the settings.
 function Repair-TimeZone {
     $want = [string]$script:Settings.timeZone
     [TimeZoneInfo]::ClearCachedData()
     $zone = [TimeZoneInfo]::Local
-    if (-not $want -or $zone.Id -eq $want) { return }
+    if (-not $want -or $zone.Id -eq $want -or (Test-AutoTimeZone)) { return }
     try {
         Set-TimeZone -Id $want
     } catch {
@@ -181,6 +212,8 @@ function Repair-TimeZone {
         return
     }
     [TimeZoneInfo]::ClearCachedData()
+    # Something that keeps changing it would otherwise bring a notice every few minutes.
+    if (Test-Said 'zoneNotice' 1) { return }
     Send-Notice (Get-Text '\u65f6\u533a\u88ab\u6539\u6210\u4e86 {0}\uff0c\u5df2\u6539\u56de' 'The time zone was changed to {0}; put back' @($zone.Id)) (Get-Text '\u8981\u6362\u65f6\u533a\uff0c\u5148\u5728\u63d2\u4ef6\u8bbe\u7f6e\u91cc\u6539\u300c\u56fa\u5b9a\u65f6\u533a\u300d\u3002' 'To change it, first change Fixed time zone in the plugin settings.')
 }
 
@@ -249,8 +282,14 @@ function Get-ZoneItem {
     if (-not $want) {
         $item.subtitle = Get-Text '\u65f6\u533a\u6ca1\u6709\u56fa\u5b9a' 'Time zone not fixed'
         $item.actions = @(@{ id = 'lock'; title = (Get-Text '\u56fa\u5b9a' 'Fix') })
+    } elseif ($want -eq $zone.Id -and (Test-AutoTimeZone)) {
+        $item.subtitle = Get-Text '\u5df2\u56fa\u5b9a\uff0c\u4f46 Windows \u5f00\u7740\u300c\u81ea\u52a8\u8bbe\u7f6e\u65f6\u533a\u300d\uff0c\u65f6\u533a\u88ab\u5b83\u6539\u6389\u65f6\u63d2\u4ef6\u4e0d\u4f1a\u6539\u56de' 'Fixed, but Windows sets the time zone automatically, and the plugin does not put back its changes'
+        $item.actions = @(@{ id = 'unlock'; title = (Get-Text '\u53d6\u6d88\u56fa\u5b9a' 'Unfix') })
     } elseif ($want -eq $zone.Id) {
         $item.subtitle = Get-Text '\u5df2\u56fa\u5b9a\uff1a\u88ab\u522b\u7684\u7a0b\u5e8f\u6539\u6389\u65f6\u81ea\u52a8\u6539\u56de' 'Fixed: put back when something changes it'
+        $item.actions = @(@{ id = 'unlock'; title = (Get-Text '\u53d6\u6d88\u56fa\u5b9a' 'Unfix') })
+    } elseif (Test-AutoTimeZone) {
+        $item.subtitle = Get-Text 'Windows \u5f00\u7740\u300c\u81ea\u52a8\u8bbe\u7f6e\u65f6\u533a\u300d\uff0c\u63d2\u4ef6\u4e0d\u4f1a\u6539\u56de\u56fa\u5b9a\u7684\u300c{0}\u300d\uff1b\u8981\u56fa\u5b9a\uff0c\u5148\u5728 Windows \u8bbe\u7f6e\u91cc\u5173\u6389\u5b83' 'Windows sets the time zone automatically, so the plugin does not put back {0}; turn that off in the Windows settings to fix it' @($want)
         $item.actions = @(@{ id = 'unlock'; title = (Get-Text '\u53d6\u6d88\u56fa\u5b9a' 'Unfix') })
     } else {
         $item.subtitle = Get-Text '\u8bbe\u7f6e\u91cc\u56fa\u5b9a\u7684\u300c{0}\u300d\u4e0d\u662f\u6709\u6548\u7684\u65f6\u533a ID' 'The fixed time zone in the settings, {0}, is not a valid id' @($want)
