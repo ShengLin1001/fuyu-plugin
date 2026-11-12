@@ -1,0 +1,20 @@
+{
+  "id": "io.github.shenglin1001.battery",
+  "name": { "zh-CN": "电量", "en": "Battery" },
+  "description": {
+    "zh-CN": "收起条上多一排并排立着的小电池：这台电脑和已连接的蓝牙设备各一个（最多 4 个），颜色各不相同，电量低的变黄、变红；不显示数字，鼠标悬停或点开页面看具体电量。岛上还有一个页面列出全部设备。读 Windows 已经知道的电量，AirPods 这类苹果耳机则听它们自己广播的电量（连着时每分钟听 5 秒，精确到 10%）；不连接设备、不需要管理员权限、不联网。插件一直运行，多一个 PowerShell 进程。",
+    "en": "Adds a row of small upright batteries to the collapsed bar: one for this computer and one for each connected Bluetooth device (up to 4), each in its own color, yellow or red when low; no numbers there, hover or open the page for them. A page lists every device. Reads the levels Windows already knows, and for AirPods-like Apple earphones the levels they broadcast (5 seconds of listening each minute while connected, in steps of 10%); it connects to nothing, needs no administrator rights and never goes online. The plugin keeps running: one more PowerShell process."
+  },
+  "version": "1.0.0",
+  "apiVersion": 2,
+  "author": "ShengLin1001",
+  "homepage": "https://github.com/ShengLin1001/fuyu-plugin/tree/main/battery",
+  "minAppVersion": "0.3.5-beta.6",
+  "runtime": { "type": "process", "command": "main.ps1" },
+  "permissions": [],
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "views": [{ "id": "levels", "title": { "zh-CN": "电量", "en": "Battery" }, "icon": "zap", "template": "list" }],
+    "statusItems": [{ "id": "battery", "priority": 2 }]
+  }
+}

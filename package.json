@@ -1,0 +1,12 @@
+{
+  "name": "fuyu-plugin-shenglin1001",
+  "private": true,
+  "description": "ShengLin1001's Fuyu plugins; each folder is one plugin.",
+  "scripts": {
+    "test": "cd battery && node --test && cd ../timesync && node --test",
+    "validate": "cd battery && fuyu-plugin validate && cd ../timesync && fuyu-plugin validate"
+  },
+  "devDependencies": {
+    "fuyu-plugin": "^0.6.0"
+  }
+}

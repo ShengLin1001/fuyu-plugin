@@ -1,0 +1,26 @@
+# Checks every plugin on each push and pull request. Releases are made locally, not here:
+# they must be signed with the author key (npx fuyu-plugin pack --sign), which stays on one computer.
+name: plugins
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  check:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        plugin: [battery, timesync]
+    defaults:
+      run:
+        working-directory: ${{ matrix.plugin }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+        working-directory: .
+      - run: npx fuyu-plugin validate
+      - run: node --test
+      - run: npx fuyu-plugin pack

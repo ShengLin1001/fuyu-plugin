@@ -1,0 +1,45 @@
+{
+  "id": "io.github.shenglin1001.timesync",
+  "name": { "zh-CN": "校时", "en": "Time sync" },
+  "description": {
+    "zh-CN": "防止电脑时间和时区跑偏：每 5 分钟、开机、唤醒和解锁时向 Windows 的时间服务器（默认 time.windows.com）问一次时间，差 2 秒以上就立即校时，差 1 分钟以上会在岛上提示。校时靠一个开机和每次联网时也会自己运行的计划任务，安装时要管理员确认一次。还可以固定时区，被别的程序改掉时自动改回。主板电池没电、冷启动后时间慢几个小时的电脑尤其需要。",
+    "en": "Keeps the clock and the time zone right: every 5 minutes, at startup, on wake and on unlock it asks the time server Windows uses (time.windows.com by default) for the time, resyncs at once when the clock is off by more than 2 seconds and tells you when it was off by a minute or more. The resync runs through a scheduled task that also runs by itself at startup and on every network connection; installing it asks for administrator rights once. It can also fix the time zone and put it back when something changes it. Most useful on computers whose motherboard battery is flat and that start hours behind."
+  },
+  "version": "0.1.0",
+  "apiVersion": 2,
+  "author": "ShengLin1001",
+  "homepage": "https://github.com/ShengLin1001/fuyu-plugin/tree/main/timesync",
+  "minAppVersion": "0.3.5-beta.6",
+  "runtime": { "type": "process", "command": "main.ps1" },
+  "permissions": ["island:notify"],
+  "activationEvents": ["onStartupFinished", "onSchedule:5", "onEvent:system.resumed", "onEvent:system.unlocked"],
+  "contributes": {
+    "commands": [
+      { "id": "install", "title": { "zh-CN": "安装校时任务", "en": "Install the resync task" } },
+      { "id": "resync", "title": { "zh-CN": "立即校时", "en": "Sync now" } },
+      { "id": "uninstall", "title": { "zh-CN": "卸载校时任务", "en": "Remove the resync task" } }
+    ],
+    "views": [{ "id": "main", "title": { "zh-CN": "校时", "en": "Time sync" }, "icon": "clock", "template": "list" }],
+    "settings": [
+      {
+        "key": "timeZone",
+        "type": "string",
+        "title": { "zh-CN": "固定时区", "en": "Fixed time zone" },
+        "description": {
+          "zh-CN": "Windows 时区 ID，如 China Standard Time；被改掉时插件自动改回。留空不管时区。在插件页面点「固定」会填成当前时区。",
+          "en": "A Windows time zone id such as China Standard Time; the plugin puts it back when something changes it. Empty: the time zone is left alone. Fix on the plugin page fills in the current one."
+        }
+      },
+      {
+        "key": "language",
+        "type": "select",
+        "title": { "zh-CN": "提示语言", "en": "Message language" },
+        "description": { "zh-CN": "岛上弹出提示用的语言（插件读不到岛的界面语言）。", "en": "The language of the plugin's messages on the island (plugins cannot read the island's language)." },
+        "options": [
+          { "value": "zh-CN", "title": { "zh-CN": "中文", "en": "Chinese" } },
+          { "value": "en", "title": { "zh-CN": "英文", "en": "English" } }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+# Left out of the plugin's zip (fuyu-plugin pack).
+.github/
+.gitignore
+.claude/
+AGENTS.md
+test/
+node_modules/
+package.json
+package-lock.json
