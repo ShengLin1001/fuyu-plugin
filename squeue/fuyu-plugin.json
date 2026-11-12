@@ -1,0 +1,29 @@
+{
+  "id": "io.github.shenglin1001.squeue",
+  "name": { "zh-CN": "作业队列", "en": "Job queue" },
+  "description": {
+    "zh-CN": "看你在超算上排队和运行的 Slurm 作业：对浮屿 设置 → AI Agent → 远程电脑 里勾选的每台电脑（以及已经启动的 WSL）每分钟查一次 squeue，收起条上显示所有电脑合计的 R / PD / CG 等状态，鼠标悬停看各状态数量；岛上页面按电脑分组列出每个作业的状态、运行时间和工作目录，悬停看完整路径，点开看分区、节点、CPU、GPU 和排队原因。查询失败会每 5 秒重试，期间保留上次的结果。用你已有的 SSH 密钥登录，只运行 squeue，不改远程电脑上的任何东西。插件一直运行，多一个 PowerShell 进程。",
+    "en": "Your Slurm jobs, queued and running: every minute it runs squeue on each computer ticked under Fuyu's Settings > AI Agent > Remote computers (and in WSL when it is running). The collapsed bar shows the R / PD / CG totals over all of them, with the counts on hover; a page lists every job by computer with its state, run time and working folder (hover for the full path, click for partition, nodes, CPUs, GPUs and the reason it waits). A failed query is retried every 5 seconds, keeping the last answer meanwhile. It logs in with your existing SSH keys, only runs squeue and changes nothing on the remote computers. The plugin keeps running: one more PowerShell process."
+  },
+  "version": "0.1.0",
+  "apiVersion": 2,
+  "author": "ShengLin1001",
+  "homepage": "https://github.com/ShengLin1001/fuyu-plugin/tree/main/squeue",
+  "minAppVersion": "0.3.5",
+  "runtime": { "type": "process", "command": "main.ps1" },
+  "permissions": [],
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "views": [
+      {
+        "id": "jobs",
+        "title": { "zh-CN": "作业", "en": "Jobs" },
+        "icon": "terminal",
+        "template": "webview",
+        "entry": "ui/index.html",
+        "frame": "none"
+      }
+    ],
+    "statusItems": [{ "id": "queue", "priority": 1 }]
+  }
+}

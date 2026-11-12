@@ -6,6 +6,7 @@ ShengLin1001 写的[浮屿](https://github.com/TixXin/fuyu)插件，一个文件
 |---|---|---|
 | [battery](battery/) | 电量 `io.github.shenglin1001.battery` | 收起条上用小电池显示电脑和蓝牙设备的电量 |
 | [timesync](timesync/) | 校时 `io.github.shenglin1001.timesync` | 时钟不准时立即校时，可以固定时区 |
+| [squeue](squeue/) | 作业队列 `io.github.shenglin1001.squeue` | 收起条上汇总超算上自己的 Slurm 作业，页面按电脑列出每个作业 |
 
 在浮屿的 设置 → 插件市场 里安装；也可以从 Release 下载 zip，解压到插件目录下以插件 id 命名的文件夹。
 

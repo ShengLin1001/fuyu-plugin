@@ -1,0 +1,46 @@
+// Stands in for ssh in the tests (CommonJS without an extension, so node --test does not run it as a test):
+//   ok-host   a login banner, then three jobs (R, PD, CF); a '|' in one working folder
+//   flaky     squeue times out on the first call, answers one CG job after that
+//   idle-host no jobs at all
+//   down-host the connection is refused
+// FAKE_SSH_STATE is a folder for the flaky host's call count.
+const fs = require("node:fs");
+const path = require("node:path");
+
+const args = process.argv.slice(2);
+const destination = args.at(-1);
+const script = fs.readFileSync(0, "utf8");
+if (!script.includes("squeue -h -u") || !script.includes("echo __fuyu_squeue__")) {
+  process.stderr.write("fake ssh: unexpected script\n");
+  process.exit(2);
+}
+const marker = "__fuyu_squeue__\n";
+const row = (id, state, name, workdir) => `${id}|${state}|${name}|1:02:03|1-00:00:00|cpu|2|128|gres/gpu:2|2026-11-12T08:00:00|2026-11-12T08:05:00|${state === "PD" ? "(Priority)" : "c[01-02]"}|${workdir}\n`;
+
+if (destination.endsWith("ok-host")) {
+  // A custom computer must be reached on its own port.
+  if (destination.includes("@") && !(args.includes("-p") && args.includes("2222"))) process.exit(255);
+  process.stdout.write("Welcome to the cluster\n" + marker);
+  process.stdout.write(row("101", "R", "relax_fcc", "/home/me/proj/Pt/strain/0.02"));
+  process.stdout.write(row("102", "PD", "scf_hcp", "/home/me/proj/a|b/strain/0.04"));
+  process.stdout.write(row("103", "CF", "neb", "/home/me/neb"));
+  process.exit(0);
+}
+if (destination === "idle-host") {
+  process.stdout.write(marker);
+  process.exit(0);
+}
+if (destination === "flaky") {
+  const counter = path.join(process.env.FAKE_SSH_STATE, "flaky-calls");
+  const calls = fs.existsSync(counter) ? Number(fs.readFileSync(counter, "utf8")) + 1 : 1;
+  fs.writeFileSync(counter, String(calls));
+  if (calls === 1) {
+    process.stdout.write(marker);
+    process.stderr.write("** WARNING: connection is not using a post-quantum key exchange algorithm.\nslurm_load_jobs error: Socket timed out on send/recv operation\n");
+    process.exit(1);
+  }
+  process.stdout.write(marker + row("201", "CG", "md_run", "/scratch/me/md"));
+  process.exit(0);
+}
+process.stderr.write(`ssh: connect to host ${destination} port 22: Connection refused\n`);
+process.exit(255);

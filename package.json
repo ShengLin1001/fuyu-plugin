@@ -3,8 +3,8 @@
   "private": true,
   "description": "ShengLin1001's Fuyu plugins; each folder is one plugin.",
   "scripts": {
-    "test": "cd battery && node --test && cd ../timesync && node --test",
-    "validate": "cd battery && fuyu-plugin validate && cd ../timesync && fuyu-plugin validate"
+    "test": "cd battery && node --test && cd ../timesync && node --test && cd ../squeue && node --test",
+    "validate": "cd battery && fuyu-plugin validate && cd ../timesync && fuyu-plugin validate && cd ../squeue && fuyu-plugin validate"
   },
   "devDependencies": {
     "fuyu-plugin": "^0.6.0"

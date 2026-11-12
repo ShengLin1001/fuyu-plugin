@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Job queue</title>
+    <style>
+      :root {
+        /* The slices' colours on the bar, in the same order: R, PD, CG, other. */
+        --state-r: light-dark(#00a346, #00e05a);
+        --state-pd: light-dark(#f07800, #ff8a00);
+        --state-cg: light-dark(#1a5fe0, #2f7bff);
+        --state-other: light-dark(#d6006f, #ff2d95);
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; background: transparent; }
+      body {
+        color: var(--fuyu-text, #eee);
+        font: 13px/1.4 var(--fuyu-font, system-ui, sans-serif);
+        padding: 4px 6px 10px;
+      }
+      .muted { color: var(--fuyu-text-muted, #999); }
+      .note { padding: 18px 8px; text-align: center; }
+      .error { color: var(--fuyu-danger, #ff6b6b); }
+      .stale { color: var(--fuyu-warning, #f5b400); }
+      details { border-radius: var(--fuyu-radius, 8px); }
+      summary { list-style: none; cursor: pointer; }
+      summary::-webkit-details-marker { display: none; }
+      summary:focus-visible { outline: 2px solid var(--fuyu-accent, #4a9eff); outline-offset: -2px; }
+      .host + .host { margin-top: 6px; }
+      .host > summary {
+        display: flex; align-items: center; gap: 8px;
+        padding: 6px 8px; font-weight: 600;
+      }
+      .host > summary::before { content: "\25B8"; color: var(--fuyu-text-muted, #999); transition: transform .15s; }
+      .host[open] > summary::before { transform: rotate(90deg); }
+      .host-name { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .counts { display: flex; gap: 8px; margin-left: auto; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .count::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; background: var(--dot); }
+      .host-status { margin: 0; padding: 0 8px 4px 26px; font-size: 12px; }
+      .job > summary {
+        display: grid; grid-template-columns: 10px 26px minmax(0, 1fr) auto; column-gap: 8px; align-items: baseline;
+        padding: 5px 8px 5px 26px; border-radius: var(--fuyu-radius, 8px);
+      }
+      .job > summary:hover, .job[open] > summary { background: var(--fuyu-surface, rgba(127, 127, 127, .12)); }
+      .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dot); align-self: center; }
+      .state { font-weight: 600; color: var(--dot); }
+      .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .time { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--fuyu-text-muted, #999); }
+      .dir { grid-column: 3 / 5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--fuyu-text-muted, #999); direction: ltr; }
+      .facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 12px; margin: 2px 8px 8px 70px; font-size: 12px; }
+      .facts dt { color: var(--fuyu-text-muted, #999); }
+      .facts dd { margin: 0; overflow-wrap: anywhere; user-select: text; }
+      .s-R { --dot: var(--state-r); }
+      .s-PD { --dot: var(--state-pd); }
+      .s-CG { --dot: var(--state-cg); }
+      .s-other { --dot: var(--state-other); }
+      @media (prefers-reduced-motion: reduce) { .host > summary::before { transition: none; } }
+    </style>
+  </head>
+  <body>
+    <main id="root"><p class="note muted" id="waiting"></p></main>
+    <script>
+      "use strict";
+      const api = acquireFuyuApi();
+      const zh = api.locale === "zh-CN";
+      const T = zh
+        ? {
+            waiting: "正在查询…", noHosts: "没有可以查的电脑。在 设置 → AI Agent → 远程电脑 里勾选要查的电脑；WSL 启动并装了 Slurm 时也会列在这里。",
+            noJobs: "没有作业", other: "其他", failing: (since, reason) => `查询失败 ${since}，正在重试：${reason}`,
+            stale: "下面是上次的结果", sep: "。", never: (reason) => `还没查到：${reason}`, updated: (ago) => `${ago}更新`,
+            ago: (s) => (s < 60 ? `${s} 秒前` : s < 3600 ? `${Math.floor(s / 60)} 分钟前` : `${Math.floor(s / 3600)} 小时前`),
+            since: (s) => (s < 60 ? `${s} 秒` : `${Math.floor(s / 60)} 分钟`),
+            id: "作业 ID", partition: "分区", nodes: "节点数", cpus: "CPU", gpus: "GPU", elapsed: "已运行", limit: "时限",
+            submit: "提交时间", start: "开始时间", startPending: "预计开始", reason: "排队原因", nodelist: "节点", workdir: "工作目录",
+          }
+        : {
+            waiting: "Asking…", noHosts: "No computer to ask. Tick some under Settings > AI Agent > Remote computers; WSL shows up here too when it runs and has Slurm.",
+            noJobs: "No jobs", other: "Other", failing: (since, reason) => `Failing for ${since}, retrying: ${reason}`,
+            stale: "Showing the last answer", sep: ". ", never: (reason) => `No answer yet: ${reason}`, updated: (ago) => `Updated ${ago}`,
+            ago: (s) => (s < 60 ? `${s} s ago` : s < 3600 ? `${Math.floor(s / 60)} min ago` : `${Math.floor(s / 3600)} h ago`),
+            since: (s) => (s < 60 ? `${s} s` : `${Math.floor(s / 60)} min`),
+            id: "Job ID", partition: "Partition", nodes: "Nodes", cpus: "CPUs", gpus: "GPUs", elapsed: "Elapsed", limit: "Time limit",
+            submit: "Submitted", start: "Started", startPending: "Expected start", reason: "Waiting for", nodelist: "Nodes", workdir: "Working folder",
+          };
+      document.getElementById("waiting").textContent = T.waiting;
+
+      const ORDER = { R: 0, PD: 1, CG: 2 };
+      const stateClass = (state) => (state in ORDER ? `s-${state}` : "s-other");
+      // Which groups are closed and which jobs are open survive a redraw and closing the page.
+      const saved = api.getState() || {};
+      const closedHosts = new Set(saved.closedHosts || []);
+      const openJobs = new Set(saved.openJobs || []);
+      const remember = () => api.setState({ closedHosts: [...closedHosts], openJobs: [...openJobs] });
+      let model = null;
+      // The plugin's clock and this page's may differ; ages are measured from its "now".
+      let receivedAt = 0;
+
+      function el(tag, className, text) {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text !== undefined) node.textContent = text;
+        return node;
+      }
+      const blank = (value) => !value || value === "N/A" || value === "(null)" || value === "None";
+      const shown = (value) => (blank(value) ? "—" : value);
+      const time = (value) => (blank(value) ? "—" : value.replace("T", " "));
+      // The last three folders: the end of a path is what tells jobs apart.
+      function shortPath(path) {
+        const parts = path.split("/").filter(Boolean);
+        return parts.length > 3 ? "…/" + parts.slice(-3).join("/") : path;
+      }
+      const gpus = (gres) => (blank(gres) ? "—" : gres.replace(/^(gres[/:])/, "").replace(/,gres[/:]/g, ", "));
+      const nowMs = () => model.now + (Date.now() - receivedAt);
+
+      function counts(dict) {
+        const box = el("span", "counts");
+        for (const [key, label] of [["R", "R"], ["PD", "PD"], ["CG", "CG"], ["other", T.other]]) {
+          if (key === "other" && !dict.other) continue;
+          box.append(el("span", `count s-${key}`, `${label} ${dict[key]}`));
+        }
+        return box;
+      }
+
+      function facts(job) {
+        const list = el("dl", "facts");
+        const pending = job.state === "PD";
+        const rows = [
+          [T.id, job.id], [T.partition, shown(job.partition)], [T.nodes, shown(job.nodes)], [T.cpus, shown(job.cpus)],
+          [T.gpus, gpus(job.gres)], [T.elapsed, shown(job.elapsed)], [T.limit, shown(job.limit)],
+          [T.submit, time(job.submit)], [pending ? T.startPending : T.start, time(job.start)],
+          [pending ? T.reason : T.nodelist, shown(job.reason)], [T.workdir, shown(job.workdir)],
+        ];
+        for (const [label, value] of rows) list.append(el("dt", "", label), el("dd", "", value));
+        return list;
+      }
+
+      function jobRow(hostName, job) {
+        const key = `${hostName}/${job.id}`;
+        const row = el("details", `job ${stateClass(job.state)}`);
+        row.open = openJobs.has(key);
+        row.addEventListener("toggle", () => { row.open ? openJobs.add(key) : openJobs.delete(key); remember(); });
+        const head = el("summary");
+        const name = el("span", "name", job.name || job.id);
+        name.title = `${job.name} (${job.id})`;
+        // A pending job has no run time yet; why it waits says more.
+        const when = job.state === "PD" ? shown(job.reason) : `${shown(job.elapsed)} / ${shown(job.limit)}`;
+        const dir = el("span", "dir", blank(job.workdir) ? "" : shortPath(job.workdir));
+        dir.title = job.workdir;
+        head.append(el("span", "dot"), el("span", "state", job.state), name, el("span", "time", when), dir);
+        row.append(head, facts(job));
+        return row;
+      }
+
+      function hostGroup(host) {
+        const group = el("details", "host");
+        group.open = !closedHosts.has(host.name);
+        group.addEventListener("toggle", () => { group.open ? closedHosts.delete(host.name) : closedHosts.add(host.name); remember(); });
+        const head = el("summary");
+        head.append(el("span", "host-name", host.name), counts(host.counts));
+        group.append(head);
+        const neverAnswered = !host.updatedAt;
+        if (host.error) {
+          const since = T.since(Math.max(0, Math.round((nowMs() - host.failingSince) / 1000)));
+          const late = nowMs() - host.failingSince >= model.alertMs;
+          const text = neverAnswered ? T.never(host.error) : `${T.failing(since, host.error)}${T.sep}${T.stale}`;
+          group.append(el("p", `host-status ${late || neverAnswered ? "error" : "stale"}`, text));
+        } else {
+          group.append(el("p", "host-status muted", T.updated(T.ago(Math.max(0, Math.round((nowMs() - host.updatedAt) / 1000))))));
+        }
+        const jobs = [...host.jobs].sort((a, b) => (ORDER[a.state] ?? 3) - (ORDER[b.state] ?? 3) || a.id.localeCompare(b.id, undefined, { numeric: true }));
+        if (jobs.length === 0 && !neverAnswered) group.append(el("p", "host-status muted", T.noJobs));
+        for (const job of jobs) group.append(jobRow(host.name, job));
+        return group;
+      }
+
+      function render() {
+        if (!model) return;
+        const root = document.getElementById("root");
+        const scroll = document.scrollingElement.scrollTop;
+        root.replaceChildren();
+        if (model.hostsError) root.append(el("p", "note error", model.hostsError));
+        if (model.hosts.length === 0) root.append(el("p", "note muted", T.noHosts));
+        for (const host of model.hosts) root.append(hostGroup(host));
+        document.scrollingElement.scrollTop = scroll;
+      }
+
+      api.onMessage((message) => {
+        if (!message || message.type !== "jobs") return;
+        model = message;
+        receivedAt = Date.now();
+        render();
+      });
+      // Ages tick on between answers; not more often, since a redraw drops an open tooltip.
+      setInterval(render, 30000);
+      api.postMessage({ type: "ready", locale: api.locale });
+    </script>
+  </body>
+</html>

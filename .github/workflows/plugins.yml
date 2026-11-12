@@ -10,7 +10,7 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        plugin: [battery, timesync]
+        plugin: [battery, timesync, squeue]
     defaults:
       run:
         working-directory: ${{ matrix.plugin }}
