@@ -1,0 +1,23 @@
+// Stands in for claude.exe in the tests (CommonJS without an extension, so node --test does not run it):
+//   mcp remove -s user <name>          drops mcpServers[<name>] from MCP_KEEPER_CLAUDE_JSON
+//   mcp add-json -s user <name> <json> sets it
+const fs = require("node:fs");
+
+const file = process.env.MCP_KEEPER_CLAUDE_JSON;
+const [group, verb, , , name, json] = process.argv.slice(2);
+const data = JSON.parse(fs.readFileSync(file, "utf8"));
+data.mcpServers ??= {};
+if (group !== "mcp") process.exit(2);
+if (verb === "remove") {
+  if (!(name in data.mcpServers)) {
+    console.error(`No user-scoped MCP server found with name: ${name}`);
+    process.exit(1);
+  }
+  delete data.mcpServers[name];
+} else if (verb === "add-json") {
+  data.mcpServers[name] = JSON.parse(json);
+} else {
+  process.exit(2);
+}
+fs.writeFileSync(file, JSON.stringify(data, null, 2));
+console.log(`${verb} ${name}`);

@@ -1,0 +1,20 @@
+{
+  "id": "io.github.shenglin1001.mcp-keeper",
+  "name": { "zh-CN": "MCP 常驻", "en": "MCP keeper" },
+  "description": {
+    "zh-CN": "让所有 Claude Code 会话共用一份本地 MCP server，不再每开一个会话就多起一套。插件页列出 ~/.claude.json 里本机的 MCP server，勾选能共享的（Playwright、Windows-MCP、mobile-mcp），插件就用 HTTP 方式把它常驻在 127.0.0.1 的固定端口上，挂了自动重启，再用 claude mcp 把这一项改成网址；取消勾选就停掉它、改回原来的配置。原配置（可能带 token）存在 Windows 凭据管理器里。只有 stdio 方式的 server 没法共享，单独列出。插件一直运行，多一个 PowerShell 进程。",
+    "en": "Lets every Claude Code session share one copy of a local MCP server instead of starting a set per session. The plugin's page lists the local MCP servers in ~/.claude.json; tick one that can be shared (Playwright, Windows-MCP, mobile-mcp) and the plugin keeps it running over HTTP on a fixed port on 127.0.0.1, restarts it when it exits and switches the entry to that address with claude mcp. Untick it to stop it and put the original entry back. The original entry (which may hold a token) is kept in the Windows Credential Manager. Servers that only speak stdio cannot be shared and are listed apart. The plugin keeps running: one more PowerShell process."
+  },
+  "version": "0.1.0",
+  "apiVersion": 2,
+  "author": "ShengLin1001",
+  "homepage": "https://github.com/ShengLin1001/fuyu-plugin/tree/main/mcp-keeper",
+  "minAppVersion": "0.3.5",
+  "runtime": { "type": "process", "command": "main.ps1" },
+  "permissions": ["secrets"],
+  "contributes": {
+    "views": [
+      { "id": "servers", "title": { "zh-CN": "MCP 常驻", "en": "MCP keeper" }, "icon": "puzzle", "template": "list" }
+    ]
+  }
+}
