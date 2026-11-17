@@ -46,7 +46,9 @@ test("ticking shares a server, a crash restarts it, unticking puts the entry bac
   try {
     host.viewVisible("servers", true);
     const page = await host.waitFor((h) => h.views.get("servers")?.groups);
-    const [shareable, single] = page;
+    const [tip, shareable, single] = page;
+    assert.deepEqual(tip.items.map((i) => i.id), ["memory-limit"], "no plugins.json: the 512 MB default, so the tip shows");
+    assert.match(tip.items[0].subtitle["zh-CN"], /^现在是 512 MB。/);
     assert.deepEqual(shareable.items.map((i) => [i.id, i.checked]), [["win", false]]);
     assert.deepEqual(single.items.map((i) => [i.id, i.checked]), [["plain", undefined]]);
     assert.ok(!page.some((g) => g.items.some((i) => i.id === "remote")), "remote addresses are not listed");
@@ -76,8 +78,11 @@ test("ticking shares a server, a crash restarts it, unticking puts the entry bac
   }
 });
 
-test("a switch cut short by a stop is finished on the next start", windowsOnly, async () => {
+test("a switch cut short by a stop is finished on the next start; a 2 GB limit hides the tip", windowsOnly, async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-keeper-test-"));
+  const dataDir = path.join(dir, "plugins-data", "io.github.shenglin1001.mcp-keeper");
+  fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(path.join(dir, "plugins.json"), JSON.stringify({ plugins: { "io.github.shenglin1001.mcp-keeper": { enabled: true, memoryLimitMb: 2048 } } }));
   const claudeJson = path.join(dir, ".claude.json");
   const original = { type: "stdio", command: process.execPath, args: [path.join(PLUGIN, "test", "windows-mcp"), "serve"], env: { FAKE_TOKEN: "t0ken" } };
   fs.writeFileSync(claudeJson, JSON.stringify({ mcpServers: { win: original } }));
@@ -88,7 +93,7 @@ test("a switch cut short by a stop is finished on the next start", windowsOnly, 
     MCP_KEEPER_PORT_OFFSET: "10000",
   });
   const host = startMockHost(PLUGIN, {
-    dataDir: dir,
+    dataDir,
     timeoutMs: 60000,
     storage: { managed: { win: PORT } },
     secrets: { "orig-win": JSON.stringify(original) },
@@ -96,6 +101,9 @@ test("a switch cut short by a stop is finished on the next start", windowsOnly, 
   try {
     await host.waitFor(() => JSON.parse(fs.readFileSync(claudeJson, "utf8")).mcpServers.win?.type === "http");
     assert.equal((await ask(PORT)).token, "t0ken");
+    host.viewVisible("servers", true);
+    const page = await host.waitFor((h) => h.views.get("servers")?.groups);
+    assert.deepEqual(page.map((g) => g.items.map((i) => i.id)), [["win"]]);
   } finally {
     await host.stop();
   }

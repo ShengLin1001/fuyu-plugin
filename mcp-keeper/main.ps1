@@ -119,6 +119,15 @@ function Get-Subtitle([string]$Name, $Launch, [bool]$IsManaged) {
     T "\u5df2\u9000\u51fa\uff0c\u7b2c $($entry.failures) \u6b21\u91cd\u542f\u7b49\u5f85\u4e2d" "Exited; restart #$($entry.failures) pending"
 }
 
+function Get-MemoryLimitMb {
+    try {
+        $file = Join-Path $env:FUYU_PLUGIN_DATA_DIR '..\..\plugins.json'
+        $limit = (Read-Json ([IO.File]::ReadAllText($file)))['plugins']['io.github.shenglin1001.mcp-keeper']['memoryLimitMb']
+        if ($limit) { return [int]$limit }
+    } catch {}
+    return 512
+}
+
 function Show-Servers {
     try { $servers = Get-McpServers } catch { Update-FuyuView $script:View @{ error = (T '\u8bfb\u4e0d\u4e86 ~/.claude.json' 'Cannot read ~/.claude.json') }; return }
     $managed = Get-Managed
@@ -140,6 +149,11 @@ function Show-Servers {
         }
     }
     $groups = @()
+    $limit = Get-MemoryLimitMb
+    if ($shareable.Count -and $limit -lt 2048) {
+        $tip = @{ id = 'memory-limit'; icon = 'info'; title = (T '\u628a\u5185\u5b58\u4e0a\u9650\u8c03\u5230 2 GB' 'Raise the memory limit to 2 GB'); subtitle = (T "\u73b0\u5728\u662f $limit MB\u3002\u5171\u4eab\u7684 server \u7b97\u5728\u63d2\u4ef6\u7684\u5185\u5b58\u91cc\uff0c\u4e09\u4e2a\u5408\u8ba1\u7ea6 800 MB\uff0c\u8d85\u4e86\u5c9b\u4f1a\u7ed3\u675f\u63d2\u4ef6\u3002\u5728 \u8bbe\u7f6e \u2192 \u63d2\u4ef6\u6269\u5c55 \u2192 MCP \u5e38\u9a7b \u2192 \u5185\u5b58\u4e0a\u9650 \u91cc\u6539" "It is $limit MB now. Shared servers count toward the plugin's memory, about 800 MB for all three, and the island stops the plugin past the limit. Change it under Settings > Plugins > MCP keeper > Memory limit") }
+        $groups += @{ title = (T '\u6ce8\u610f' 'Note'); items = @($tip) }
+    }
     if ($shareable.Count) { $groups += @{ title = (T '\u53ef\u4ee5\u5171\u4eab' 'Can be shared'); items = $shareable } }
     if ($single.Count) { $groups += @{ title = (T '\u4e0d\u652f\u6301\u5171\u4eab' 'Cannot be shared'); items = $single } }
     Update-FuyuView $script:View @{ groups = $groups; empty = (T '~/.claude.json \u91cc\u6ca1\u6709\u672c\u5730 MCP server' 'No local MCP servers in ~/.claude.json') }
