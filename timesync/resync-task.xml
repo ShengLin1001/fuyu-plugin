@@ -2,7 +2,7 @@
 <Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
     <Description>Resyncs the system clock at startup and each time a network connects (installed by the Fuyu plugin io.github.shenglin1001.timesync).</Description>
-    <URI>\ResyncTimeOnNetwork</URI>
+    <URI>\Fuyu\ResyncTimeOnNetwork</URI>
     <!-- Signed-in users may read and start the task, so the plugin can run it without elevation. -->
     <SecurityDescriptor>D:(A;;FA;;;BA)(A;;FA;;;SY)(A;;GRGX;;;AU)</SecurityDescriptor>
   </RegistrationInfo>

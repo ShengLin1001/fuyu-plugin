@@ -19,18 +19,19 @@
 
 ## 校时任务
 
-`w32tm /resync` 要管理员权限，插件没有，所以校时交给计划任务 `\ResyncTimeOnNetwork`（定义在 [resync-task.xml](resync-task.xml)）：
+`w32tm /resync` 要管理员权限，插件没有，所以校时交给计划任务 `\Fuyu\ResyncTimeOnNetwork`（定义在 [resync-task.xml](resync-task.xml)）：
 
 - 以 SYSTEM 身份运行 `net start w32time & w32tm /resync /rediscover`。
 - 自己也会在开机 1 分钟后、每次连上网络 15 秒后运行，岛没开也一样。
 - 允许已登录的用户启动它，插件因此不用管理员权限就能校时。别人只能让它校一次时，不能改它。
 - 不改注册表、不改时间服务的配置，时间服务器仍是 Windows 设置的那个。
-- 卸载插件前，先在页面上点「卸载」删掉任务；忘了的话，在管理员 PowerShell 里运行 `Unregister-ScheduledTask -TaskName ResyncTimeOnNetwork -Confirm:$false`。
-- 以前手动装过同名任务的，插件会提示「没有权限启动它」，点「重新安装」换成插件的版本。
+- 放在任务计划程序的 `\Fuyu\` 文件夹里，不会覆盖你自己在根目录建的同名任务。
+- 0.1.0 把任务装在根目录 `\ResyncTimeOnNetwork`；它照常可用，下次点「安装」或「重新安装」时会移到 `\Fuyu\`。
+- 卸载插件前，先在页面上点「卸载」删掉任务；忘了的话，在管理员 PowerShell 里运行 `Unregister-ScheduledTask -TaskName ResyncTimeOnNetwork -TaskPath '\Fuyu\' -Confirm:$false`。
 
 ## 设置
 
-- **固定时区**：Windows 时区 ID（如 `China Standard Time`、`Pacific Standard Time`），留空不管时区。页面上点「固定」会填成当前时区。要换时区，先取消固定，否则插件会改回来。
+- **固定时区**：Windows 时区 ID（如 `China Standard Time`、`Pacific Standard Time`），留空不管时区。页面上点「固定」会填成当前时区。要换时区，先取消固定，否则插件会改回来（被改回时一小时内最多提示一次）。Windows 开着「自动设置时区」时插件不改回，免得出门在外时和 Windows 来回改；页面上会说明。
 - **提示语言**：岛上弹出的提示用中文还是英文。插件读不到岛的界面语言，页面本身跟着岛的语言。
 
 ## 权限与开销
@@ -57,4 +58,4 @@ npx fuyu-plugin pack --sign
 
 ## English
 
-Keeps the clock and the time zone right. At startup, every 5 minutes, on wake and on unlock it asks the time server Windows uses for the time (one SNTP request); when the clock is off by more than 2 seconds it starts the scheduled task `\ResyncTimeOnNetwork`, which runs `w32tm /resync /rediscover` as SYSTEM, and it tells you when the clock was off by a minute or more. The task also runs by itself at startup and on every network connection, and lets signed-in users start it, so the plugin needs no administrator rights; installing or removing it from the plugin's page asks for them once. Optionally it fixes the time zone and puts it back when something changes it. Permission: `island:notify`.
+Keeps the clock and the time zone right. At startup, every 5 minutes, on wake and on unlock it asks the time server Windows uses for the time (one SNTP request); when the clock is off by more than 2 seconds it starts the scheduled task `\Fuyu\ResyncTimeOnNetwork`, which runs `w32tm /resync /rediscover` as SYSTEM, and it tells you when the clock was off by a minute or more. The task also runs by itself at startup and on every network connection, and lets signed-in users start it, so the plugin needs no administrator rights; installing or removing it from the plugin's page asks for them once. Optionally it fixes the time zone and puts it back when something changes it, unless Windows sets the time zone automatically. Remove the task on the plugin's page before uninstalling the plugin. Permission: `island:notify`.
